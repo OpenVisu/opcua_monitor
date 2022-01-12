@@ -28,44 +28,51 @@ import sentry_sdk
 
 from backend import Backend
 
-sentry_sdk.init(traces_sample_rate=1)
-
+if os.getenv('SENTRY_DSN') is not None:
+    sentry_sdk.init(
+        os.getenv('SENTRY_DSN'),
+        traces_sample_rate=os.getenv('SENTRY_TRACES_SAMPLE_RATE', 1),
+    )
 
 backend: Backend = Backend(
-    os.getenv('API_URL', 'http://api/'), os.environ['ACCESS_TOKEN'])
+    os.getenv('API_URL', 'http://api/'),
+    os.environ['ACCESS_TOKEN'],
+)
 
-# if a successful connection was made in the last update_interval seconds don't try again
-update_interval = 60
+if __name__ == '__main__':
+    # if a successful connection was made in the last update_interval
+    # seconds don't try again
+    update_interval = 60
 
-while True:
+    while True:
 
-    with start_transaction(op="loop", name='loop'):
-        check_time = int(time.time())
-        check_datetime = datetime.datetime.fromtimestamp(
-            check_time, tz=datetime.timezone.utc)
+        with start_transaction(op="loop", name='loop'):
+            check_time = int(time.time())
+            check_datetime = datetime.datetime.fromtimestamp(
+                check_time, tz=datetime.timezone.utc)
 
-        servers = backend.server_index()
+            servers = backend.server_index()
 
-        opcua_client: Client
+            opcua_client: Client
 
-        for server in servers:
-            opcua_client = Client(server['url'], timeout=10)
-            opcua_client.session_timeout = 1000
-            opcua_client.secure_channel_timeout = 300000
-            connected = False
-            connection_error = ''
-            try:
-                opcua_client.connect()
-                connected = True
-                opcua_client.disconnect()
-            except CancelledError:
-                connection_error = 'CancelledError'
-            except OSError:
-                connection_error = 'OSError'
-            except UaError:
-                connection_error = 'UaError'
-            backend.server_update(server['id'], connection_error)
+            for server in servers:
+                opcua_client = Client(server['url'], timeout=10)
+                opcua_client.session_timeout = 1000
+                opcua_client.secure_channel_timeout = 300000
+                connected = False
+                connection_error = ''
+                try:
+                    opcua_client.connect()
+                    connected = True
+                    opcua_client.disconnect()
+                except CancelledError:
+                    connection_error = 'CancelledError'
+                except OSError:
+                    connection_error = 'OSError'
+                except UaError:
+                    connection_error = 'UaError'
+                backend.server_update(server['id'], connection_error)
 
-    # TODO might be a good idea to clean up orphaned nodes and endpoints here
+        # TODO might be a good idea to clean up orphaned nodes and endpoints here
 
-    time.sleep(update_interval)
+        time.sleep(update_interval)
