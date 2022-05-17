@@ -52,7 +52,7 @@ async def main():
             servers = backend.server_index()
             for server in servers:
                 backend.server_update(
-                    server['id'], Monitor.test_connection(server['url']))
+                    server['id'], await Monitor.test_connection(server['url']))
         # TODO might be a good idea to clean up orphaned nodes and endpoints here
         await asyncio.sleep(update_interval)
 
