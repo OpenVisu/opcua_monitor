@@ -28,6 +28,7 @@ from sentry_sdk import start_transaction
 import sentry_sdk
 
 from backend import Backend
+from monitor import Monitor
 
 if os.getenv('SENTRY_DSN') is not None:
     sentry_sdk.init(
@@ -50,30 +51,11 @@ async def main():
         with start_transaction(op="loop", name='loop'):
             servers = backend.server_index()
             for server in servers:
-                backend.server_update(server['id'], test_connection(server['url']))
+                backend.server_update(
+                    server['id'], Monitor.test_connection(server['url']))
         # TODO might be a good idea to clean up orphaned nodes and endpoints here
         await asyncio.sleep(update_interval)
 
-
-async def test_connection(url: str) -> str:
-    """
-    :param url: url of the server.
-    test if it is possible to connect to the server
-    """
-    opcua_client = Client(url, timeout=10)
-    opcua_client.session_timeout = 1000
-    opcua_client.secure_channel_timeout = 300000
-    connection_error = ''
-    try:
-        await opcua_client.connect()
-        await opcua_client.disconnect()
-    except CancelledError:
-        connection_error = 'CancelledError'
-    except OSError:
-        connection_error = 'OSError'
-    except UaError:
-        connection_error = 'UaError'
-    return connection_error
 
 if __name__ == '__main__':
     asyncio.run(main())
