@@ -34,7 +34,7 @@ class TestMain(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, '')
 
     async def test_connection_fail(self):
-        status = await Monitor.test_connection("opc.tcp://0.0.1.0:4843/")
+        status = await Monitor.test_connection("opc.tcp://0.0.0.0:4843/")
         self.assertEqual(status, 'OSError')
 
     async def asyncTearDown(self):
