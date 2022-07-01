@@ -42,12 +42,8 @@ jobs:
     - name: Test with pytest
       run: |
         coverage run -m pytest
-        coverage lcov -o coverage/lcov.info
-
     - name: Upload coverage to codecov
       uses: codecov/codecov-action@v3
-      with:
-        files: coverage/lcov.info
         
   build-and-push-image:
     needs: build-and-test
