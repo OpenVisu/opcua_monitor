@@ -14,19 +14,21 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import asyncio
 import datetime
 import os
 from concurrent.futures import CancelledError
 
 import time
-from opcua import Client
-from opcua.ua import UaError
-from opcua.ua.uaerrors import BadTooManySessions
+from asyncua import Client
+from asyncua.ua import UaError
+from asyncua.ua.uaerrors import BadTooManySessions
 from sentry_sdk import start_transaction
 
 import sentry_sdk
 
 from backend import Backend
+from monitor import Monitor
 
 if os.getenv('SENTRY_DSN') is not None:
     sentry_sdk.init(
@@ -39,40 +41,21 @@ backend: Backend = Backend(
     os.environ['ACCESS_TOKEN'],
 )
 
-if __name__ == '__main__':
+
+async def main():
     # if a successful connection was made in the last update_interval
     # seconds don't try again
     update_interval = 60
 
     while True:
-
         with start_transaction(op="loop", name='loop'):
-            check_time = int(time.time())
-            check_datetime = datetime.datetime.fromtimestamp(
-                check_time, tz=datetime.timezone.utc)
-
             servers = backend.server_index()
-
-            opcua_client: Client
-
             for server in servers:
-                opcua_client = Client(server['url'], timeout=10)
-                opcua_client.session_timeout = 1000
-                opcua_client.secure_channel_timeout = 300000
-                connected = False
-                connection_error = ''
-                try:
-                    opcua_client.connect()
-                    connected = True
-                    opcua_client.disconnect()
-                except CancelledError:
-                    connection_error = 'CancelledError'
-                except OSError:
-                    connection_error = 'OSError'
-                except UaError:
-                    connection_error = 'UaError'
-                backend.server_update(server['id'], connection_error)
-
+                backend.server_update(
+                    server['id'], await Monitor.test_connection(server['url']))
         # TODO might be a good idea to clean up orphaned nodes and endpoints here
+        await asyncio.sleep(update_interval)
 
-        time.sleep(update_interval)
+
+if __name__ == '__main__':
+    asyncio.run(main())
